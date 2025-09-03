@@ -7,6 +7,8 @@ import random
 import subprocess
 import signal
 
+from natsort import natsorted
+
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, 
     QLabel, QLineEdit, QFileDialog, QSizePolicy, QMessageBox, 
@@ -158,7 +160,9 @@ class CreateProjectApp(QMainWindow):
         self.btn_select_dataset.setIcon(QIcon.fromTheme("folder-open")) 
         self.btn_select_dataset.setToolTip(CONFIG["select_dataset_folder_tooltip"])
         self.btn_select_dataset.clicked.connect(self.select_dataset)
+        self.lbl_select_dataset = QLabel("")
         layout.addWidget(self.btn_select_dataset)
+        layout.addWidget(self.lbl_select_dataset)
         
         # Tabela de usuários e proporção
         layout.addWidget(QLabel(CONFIG["users_and_proportions"]))
@@ -221,6 +225,7 @@ class CreateProjectApp(QMainWindow):
         if folder:
             self.dataset_path = folder
             QMessageBox.information(self, CONFIG["selected"], CONFIG["selected_folder"]+f"\n{folder}")
+            self.lbl_select_dataset.setText(folder)
     
     # Usuários
     def add_user_row(self):
@@ -322,6 +327,7 @@ class CreateProjectApp(QMainWindow):
             "birth_date": QDateTime.currentDateTime().toString(Qt.ISODate)
         }
         for user, imgs in images_per_user.items():
+            imgs = natsorted(imgs)
             config_data[f"images_{user}"] = {img: False for img in imgs}
         
         with open(config_path, "w") as f:
