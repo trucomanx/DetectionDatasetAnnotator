@@ -322,7 +322,7 @@ class CreateProjectApp(QMainWindow):
             "birth_date": QDateTime.currentDateTime().toString(Qt.ISODate)
         }
         for user, imgs in images_per_user.items():
-            config_data[f"images_{user}"] = [ {"filename": img_fn, "approved":False } for img_fn in imgs]
+            config_data[f"images_{user}"] = {img: False for img in imgs}
         
         with open(config_path, "w") as f:
             json.dump(config_data, f, indent=4)

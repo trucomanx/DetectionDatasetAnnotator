@@ -275,13 +275,15 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
     def populate_tables(self):
         self.table_todo.setRowCount(0)
         self.table_done.setRowCount(0)
-        birth_date = self.config.get("birth_date")
-        birth_dt = QtCore.QDateTime.fromString(birth_date, QtCore.Qt.ISODate)
-        print("birth_dt",birth_dt)
-        user_images = self.config.get(f"images_{self.user}", [])
-        user_images = natsorted(user_images)
+        
+        user_data_images = self.config.get(f"images_{self.user}", [])
+        
+        #user_images = natsorted(user_images)
 
-        for img_name in user_images:
+        for data in user_data_images:
+            img_name = data["filename"]
+            approved = data["approved"]
+            
             img_path = os.path.join(self.dataset_path, "images", img_name)
             if not os.path.exists(img_path):
                 continue
@@ -291,18 +293,7 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
                 self.dataset_path, "labels", img_name.replace(".png", ".txt")
             )
 
-            if os.path.exists(label_path):
-                file_dt = QtCore.QDateTime.fromSecsSinceEpoch(
-                    int(os.path.getmtime(label_path))
-                )
-                print("file_dt",file_dt)
-            else:
-                # se não existe label ainda, usa a data da imagem
-                file_dt = QtCore.QDateTime.fromSecsSinceEpoch(
-                    int(os.path.getmtime(img_path))
-                )
-
-            table = self.table_todo if file_dt <= birth_dt else self.table_done
+            table = self.table_todo if not approved else self.table_done
             row = table.rowCount()
             table.insertRow(row)
             table.setItem(row, 0, QtWidgets.QTableWidgetItem(img_name))
@@ -380,6 +371,7 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
     def approve_image(self):
         if not self.current_image: return
         label_path = os.path.join(self.dataset_path,"labels",self.current_image.replace(".png",".txt"))
+        
         if self.scene.box_items:
             w = self.pixmap_item.pixmap().width()
             h = self.pixmap_item.pixmap().height()
@@ -392,6 +384,7 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
                     bh = rect.height()/h
                     cls_id = self.classes.index(box.class_name)
                     f.write(f"{cls_id} {cx} {cy} {bw} {bh}\n")
+        
         # Update tables
         items = self.table_todo.findItems(self.current_image,QtCore.Qt.MatchExactly)
         if items:
@@ -401,6 +394,8 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
             self.table_done.insertRow(row_done)
             self.table_done.setItem(row_done,0,QtWidgets.QTableWidgetItem(self.current_image))
 
+        #self.config[f"images_{self.user}"]
+        
 # -------------------------------
 # Main
 # -------------------------------
