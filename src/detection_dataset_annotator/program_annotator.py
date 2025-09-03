@@ -131,6 +131,9 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("YOLO Detection Annotator")
+        self.resize(800, 600)
+        
+        
         self.dataset_path = ""
         self.repo = None
         self.config = {}
@@ -179,6 +182,11 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
         btn_approve = QtWidgets.QPushButton("Approve")
         btn_approve.clicked.connect(lambda: self.approve_image())
         right_panel.addWidget(btn_approve)
+        
+        # Current image
+        self.lbl_current_image = QtWidgets.QLabel("...")
+        self.lbl_current_image.setAlignment(QtCore.Qt.AlignCenter)
+        right_panel.addWidget(self.lbl_current_image)
         
         # View
         self.scene = AnnotateScene()
@@ -261,13 +269,21 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
     # Config
     # -------------------------------
     def load_config(self):
-        config_path = os.path.join(self.dataset_path,"config.json")
+        config_path = os.path.join(self.dataset_path, "config.json")
         if not os.path.exists(config_path):
             QtWidgets.QMessageBox.warning(self,"Error","config.json not found!")
             return
         with open(config_path,"r") as f:
             self.config = json.load(f)
         self.classes = self.config.get("classes",[])
+
+    def save_config(self):
+        config_path = os.path.join(self.dataset_path, "config.json")
+        try:
+            with open(config_path, "w") as f:
+                json.dump(self.config, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, "Error", f"Could not save config.json:\n{e}")
 
     # -------------------------------
     # Tables
@@ -276,13 +292,12 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
         self.table_todo.setRowCount(0)
         self.table_done.setRowCount(0)
         
-        user_data_images = self.config.get(f"images_{self.user}", [])
+        user_data_images = self.config.get(f"images_{self.user}", {})
         
         #user_images = natsorted(user_images)
 
-        for data in user_data_images:
-            img_name = data["filename"]
-            approved = data["approved"]
+        for img_name in user_data_images:
+            approved = user_data_images[img_name]
             
             img_path = os.path.join(self.dataset_path, "images", img_name)
             if not os.path.exists(img_path):
@@ -331,6 +346,7 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
         img_name = items[0].text()
         self.current_image = img_name
         self.load_image_and_boxes(img_name)
+        self.lbl_current_image.setText(self.current_image)
 
     def load_image_and_boxes(self,img_name):
         self.scene.clear()
@@ -394,7 +410,8 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
             self.table_done.insertRow(row_done)
             self.table_done.setItem(row_done,0,QtWidgets.QTableWidgetItem(self.current_image))
 
-        #self.config[f"images_{self.user}"]
+        self.config[f"images_{self.user}"][self.current_image]=True
+        self.save_config()
         
 # -------------------------------
 # Main
