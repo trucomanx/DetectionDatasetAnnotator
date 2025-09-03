@@ -8,7 +8,7 @@ import subprocess
 import signal
 
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, 
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, 
     QLabel, QLineEdit, QFileDialog, QSizePolicy, QMessageBox, 
     QMainWindow, QAction)
 from PyQt5.QtCore import Qt, QUrl, QDateTime, QSize
@@ -35,6 +35,7 @@ DEFAULT_CONTENT={   "toolbar_configure": "Configure",
                     "window_height": 600,
                     "select_dataset_folder": "Select dataset folder",
                     "select_dataset_folder_tooltip": "Select the directory with a dataset in YOLO style, which must include a mandatory subdirectory \"images\" containing image files.",
+                    "valid_image_exts": [".png", ".bmp", ".jpg", ".jpeg"],
                     "users_and_proportions": "Users and proportions:",
                     "user": "User",
                     "proportion": "Proportion",
@@ -50,7 +51,7 @@ DEFAULT_CONTENT={   "toolbar_configure": "Configure",
                     "selected": "Selected",
                     "error": "Error",
                     "select_the_dataset_folder": "Select the dataset folder!",
-                    "no_png_image": "No PNG image found in the Images folder!",
+                    "no_image_file": "No PNG image found in the Images folder!",
                     "invalid_proportion_in_line": "Invalid proportion on the line",
                     "add_one_user": "Add at least one user!",
                     "add_one_class": "Add at least one class!",
@@ -150,6 +151,7 @@ class CreateProjectApp(QMainWindow):
         # Selecionar pasta do dataset
         self.btn_select_dataset = QPushButton(CONFIG["select_dataset_folder"])
         self.btn_select_dataset.setIcon(QIcon.fromTheme("folder-open")) 
+        self.btn_select_dataset.setToolTip(CONFIG["select_dataset_folder_tooltip"])
         self.btn_select_dataset.clicked.connect(self.select_dataset)
         layout.addWidget(self.btn_select_dataset)
         
@@ -249,10 +251,16 @@ class CreateProjectApp(QMainWindow):
         config_path = os.path.join(self.dataset_path, "config.json")
         
         # Verifica se existem imagens
-        all_images = [f for f in os.listdir(images_path) if f.lower().endswith(".png")]
+        valid_exts = CONFIG["valid_image_exts"]
+        all_images = [
+            f for f in os.listdir(images_path)
+            if any(f.lower().endswith(ext) for ext in valid_exts)
+        ]
+
         if not all_images:
-            QMessageBox.warning(self, CONFIG["error"], CONFIG["no_png_image"])
+            QMessageBox.warning(self, CONFIG["error"], CONFIG["no_image_file"])
             return
+        
         
         # Ler usuários e proporções da tabela
         users = []
