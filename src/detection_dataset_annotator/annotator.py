@@ -1,0 +1,412 @@
+#!/usr/bin/python3
+
+import os
+import sys
+import json
+from PyQt5 import QtWidgets, QtCore, QtGui
+from git import Repo, GitCommandError
+from natsort import natsorted
+
+# -------------------------------
+# Bounding Box
+# -------------------------------
+class BoundingBox(QtWidgets.QGraphicsRectItem):
+    HANDLE_SIZE = 6
+
+    def __init__(self, rect, class_name, color, parent=None):
+        super().__init__(rect)
+        self.setFlags(
+            QtWidgets.QGraphicsItem.ItemIsSelectable |
+            QtWidgets.QGraphicsItem.ItemIsMovable |
+            QtWidgets.QGraphicsItem.ItemSendsGeometryChanges
+        )
+        self.setAcceptHoverEvents(True)  # necessário para redimensionar
+        self.resizing = False
+        self.resize_direction = None  # "bottom_right", etc
+
+        self.class_name = class_name
+        self.color = color
+        self.text_item = QtWidgets.QGraphicsSimpleTextItem(class_name, self)
+        self.update_label_position()
+        self.setPen(QtGui.QPen(color, 2))
+        self.setBrush(QtGui.QBrush(QtGui.QColor(0,0,0,0)))
+
+    def update_label_position(self):
+        rect = self.rect()
+        self.text_item.setPos(rect.x(), rect.y() - 15)
+
+    def hoverMoveEvent(self, event):
+        # Detecta se o mouse está próximo do canto inferior direito
+        rect = self.rect()
+        br_rect = QtCore.QRectF(rect.right()-self.HANDLE_SIZE, rect.bottom()-self.HANDLE_SIZE,
+                                self.HANDLE_SIZE*2, self.HANDLE_SIZE*2)
+        if br_rect.contains(event.pos()):
+            self.setCursor(QtCore.Qt.SizeFDiagCursor)
+        else:
+            self.setCursor(QtCore.Qt.ArrowCursor)
+        super().hoverMoveEvent(event)
+
+    def mousePressEvent(self, event):
+        rect = self.rect()
+        br_rect = QtCore.QRectF(rect.right()-self.HANDLE_SIZE, rect.bottom()-self.HANDLE_SIZE,
+                                self.HANDLE_SIZE*2, self.HANDLE_SIZE*2)
+        if br_rect.contains(event.pos()):
+            self.resizing = True
+        else:
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self.resizing:
+            rect = self.rect()
+            rect.setBottomRight(event.pos())
+            self.setRect(rect)
+            self.update_label_position()
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self.resizing = False
+        super().mouseReleaseEvent(event)
+
+
+# -------------------------------
+# Custom Scene para desenhar boxes
+# -------------------------------
+class AnnotateScene(QtWidgets.QGraphicsScene):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.adding_class = None
+        self.temp_rect_item = None
+        self.start_pos = None
+        self.box_items = []
+
+    def set_adding_class(self, class_name):
+        self.adding_class = class_name
+
+    def keyPressEvent(self, event):
+        if event.key() == QtCore.Qt.Key_Delete:
+            # Remove todos os boxes selecionados
+            for item in self.selectedItems():
+                if isinstance(item, BoundingBox):
+                    self.removeItem(item)
+                    if item in self.box_items:
+                        self.box_items.remove(item)
+        else:
+            super().keyPressEvent(event)
+
+    def mousePressEvent(self, event):
+        if self.adding_class:
+            self.start_pos = event.scenePos()
+            self.temp_rect_item = QtWidgets.QGraphicsRectItem(QtCore.QRectF(self.start_pos, self.start_pos))
+            self.temp_rect_item.setPen(QtGui.QPen(QtGui.QColor(255,0,0),2,QtCore.Qt.DashLine))
+            self.addItem(self.temp_rect_item)
+        else:
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self.temp_rect_item:
+            rect = QtCore.QRectF(self.start_pos, event.scenePos()).normalized()
+            self.temp_rect_item.setRect(rect)
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.temp_rect_item:
+            rect = self.temp_rect_item.rect()
+            if rect.width() > 5 and rect.height() > 5:
+                color = QtGui.QColor.fromHsv(hash(self.adding_class)%360, 255, 200)
+                box = BoundingBox(rect, self.adding_class, color)
+                self.addItem(box)
+                self.box_items.append(box)
+            self.removeItem(self.temp_rect_item)
+            self.temp_rect_item = None
+            self.adding_class = None
+        else:
+            super().mouseReleaseEvent(event)
+
+# -------------------------------
+# Main App
+# -------------------------------
+class AnnotateYoloApp(QtWidgets.QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("YOLO Detection Annotator")
+        self.dataset_path = ""
+        self.repo = None
+        self.config = {}
+        self.user = ""
+        self.current_image = ""
+        self.init_ui()
+
+    # -------------------------------
+    # UI
+    # -------------------------------
+    def init_ui(self):
+        central = QtWidgets.QWidget()
+        self.setCentralWidget(central)
+        layout = QtWidgets.QHBoxLayout()
+        central.setLayout(layout)
+
+        # Left panel
+        left_panel = QtWidgets.QVBoxLayout()
+
+        self.btn_select_dataset = QtWidgets.QPushButton("Select Dataset Folder")
+        self.btn_select_dataset.clicked.connect(self.select_dataset)
+        left_panel.addWidget(self.btn_select_dataset)
+
+        left_panel.addWidget(QtWidgets.QLabel("To Annotate"))
+        self.table_todo = QtWidgets.QTableWidget(0,1)
+        self.table_todo.setHorizontalHeaderLabels(["Image"])
+        self.table_todo.itemSelectionChanged.connect(self.display_selected_image)
+        left_panel.addWidget(self.table_todo)
+
+        left_panel.addWidget(QtWidgets.QLabel("Annotated"))
+        self.table_done = QtWidgets.QTableWidget(0,1)
+        self.table_done.setHorizontalHeaderLabels(["Image"])
+        self.table_done.itemSelectionChanged.connect(self.display_selected_image)
+        left_panel.addWidget(self.table_done)
+
+        self.btn_commit = QtWidgets.QPushButton("Commit & Push")
+        self.btn_commit.clicked.connect(self.commit_push)
+        left_panel.addWidget(self.btn_commit)
+
+        layout.addLayout(left_panel,1)
+
+        # Right panel: QGraphicsView
+        right_panel = QtWidgets.QVBoxLayout()
+        
+        # Buton
+        btn_approve = QtWidgets.QPushButton("Approve")
+        btn_approve.clicked.connect(lambda: self.approve_image())
+        right_panel.addWidget(btn_approve)
+        
+        # View
+        self.scene = AnnotateScene()
+        self.view = QtWidgets.QGraphicsView(self.scene)
+        self.view.setRenderHint(QtGui.QPainter.Antialiasing)
+        right_panel.addWidget(self.view)
+
+        # Buttons container
+        self.class_buttons_layout = QtWidgets.QHBoxLayout()
+        right_panel.addLayout(self.class_buttons_layout)
+
+        layout.addLayout(right_panel,2)
+
+
+    def change_selected_box_class(self, new_class):
+        for box in self.scene.selectedItems():
+            if isinstance(box, BoundingBox):
+                box.class_name = new_class
+                box.text_item.setText(new_class)
+                # Atualiza cor
+                box.color = QtGui.QColor.fromHsv(hash(new_class)%360, 255, 200)
+                box.setPen(QtGui.QPen(box.color, 2))
+                box.text_item.setBrush(QtGui.QBrush(box.color))
+
+    # -------------------------------
+    # Dataset / User
+    # -------------------------------
+    def select_dataset(self):
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self,"Select dataset folder")
+        if folder:
+            self.dataset_path = folder
+            self.load_config()
+
+            users = [key.replace("images_","") for key in self.config if key.startswith("images_")]
+            if not users:
+                QtWidgets.QMessageBox.warning(self,"Error","No users found in config.json")
+                return
+            user, ok = QtWidgets.QInputDialog.getItem(self,"Select User","Choose your user:",users,0,False)
+            if not ok: return
+            self.user = user
+
+            self.init_git()
+            self.populate_tables()
+            self.create_class_buttons()
+
+    # -------------------------------
+    # Git
+    # -------------------------------
+    def init_git(self):
+        try:
+            if not os.path.exists(os.path.join(self.dataset_path,".git")):
+                self.repo = Repo.init(self.dataset_path)
+            else:
+                self.repo = Repo(self.dataset_path)
+
+            if not self.repo.remotes:
+                git_url, ok = QtWidgets.QInputDialog.getText(self,"Remote URL","Enter Git remote URL:")
+                if ok and git_url:
+                    self.repo.create_remote("origin",git_url)
+        except GitCommandError as e:
+            QtWidgets.QMessageBox.warning(self,"Git Error",str(e))
+
+    def commit_push(self):
+        if not self.repo: return
+        try:
+            self.repo.git.add("labels")
+            self.repo.git.add("config.json")
+            self.repo.index.commit(f"Update annotations by {self.user}")
+            for remote in self.repo.remotes:
+                branch = self.repo.active_branch
+                try:
+                    remote.push(refspec=f"{branch.name}:{branch.name}", set_upstream=True)
+                except GitCommandError:
+                    remote.push(refspec=f"{branch.name}:{branch.name}")
+            QtWidgets.QMessageBox.information(self,"Git","Changes pushed!")
+        except GitCommandError as e:
+            QtWidgets.QMessageBox.warning(self,"Git Error",str(e))
+
+    # -------------------------------
+    # Config
+    # -------------------------------
+    def load_config(self):
+        config_path = os.path.join(self.dataset_path,"config.json")
+        if not os.path.exists(config_path):
+            QtWidgets.QMessageBox.warning(self,"Error","config.json not found!")
+            return
+        with open(config_path,"r") as f:
+            self.config = json.load(f)
+        self.classes = self.config.get("classes",[])
+
+    # -------------------------------
+    # Tables
+    # -------------------------------
+    def populate_tables(self):
+        self.table_todo.setRowCount(0)
+        self.table_done.setRowCount(0)
+        birth_date = self.config.get("birth_date")
+        birth_dt = QtCore.QDateTime.fromString(birth_date, QtCore.Qt.ISODate)
+        print("birth_dt",birth_dt)
+        user_images = self.config.get(f"images_{self.user}", [])
+        user_images = natsorted(user_images)
+
+        for img_name in user_images:
+            img_path = os.path.join(self.dataset_path, "images", img_name)
+            if not os.path.exists(img_path):
+                continue
+
+            # procura o txt correspondente
+            label_path = os.path.join(
+                self.dataset_path, "labels", img_name.replace(".png", ".txt")
+            )
+
+            if os.path.exists(label_path):
+                file_dt = QtCore.QDateTime.fromSecsSinceEpoch(
+                    int(os.path.getmtime(label_path))
+                )
+                print("file_dt",file_dt)
+            else:
+                # se não existe label ainda, usa a data da imagem
+                file_dt = QtCore.QDateTime.fromSecsSinceEpoch(
+                    int(os.path.getmtime(img_path))
+                )
+
+            table = self.table_todo if file_dt <= birth_dt else self.table_done
+            row = table.rowCount()
+            table.insertRow(row)
+            table.setItem(row, 0, QtWidgets.QTableWidgetItem(img_name))
+
+    # -------------------------------
+    # Class buttons
+    # -------------------------------
+    def create_class_buttons(self):
+        for i in reversed(range(self.class_buttons_layout.count())):
+            w = self.class_buttons_layout.itemAt(i).widget()
+            if w: w.setParent(None)
+        for cls in self.classes:
+            btn = QtWidgets.QPushButton(cls)
+            #btn.clicked.connect(lambda checked,c=cls: self.start_adding_box(c))
+            btn.clicked.connect(lambda checked,c=cls: self.on_class_button(c))
+            self.class_buttons_layout.addWidget(btn)
+
+
+    def on_class_button(self, class_name):
+        selected = self.scene.selectedItems()
+        if selected:
+            # Muda a classe de boxes selecionados
+            self.change_selected_box_class(class_name)
+        else:
+            # Se nenhum box selecionado, adiciona um novo box
+            self.start_adding_box(class_name)
+
+
+    # -------------------------------
+    # Display image
+    # -------------------------------
+    def display_selected_image(self):
+        items = self.sender().selectedItems()
+        if not items: return
+        img_name = items[0].text()
+        self.current_image = img_name
+        self.load_image_and_boxes(img_name)
+
+    def load_image_and_boxes(self,img_name):
+        self.scene.clear()
+        self.scene.box_items = []
+        img_path = os.path.join(self.dataset_path,"images",img_name)
+        pixmap = QtGui.QPixmap(img_path)
+        self.pixmap_item = self.scene.addPixmap(pixmap)
+        self.view.fitInView(self.pixmap_item,QtCore.Qt.KeepAspectRatio)
+
+        # Load YOLO labels
+        label_path = os.path.join(self.dataset_path,"labels",img_name.replace(".png",".txt"))
+        if os.path.exists(label_path):
+            w,h = pixmap.width(), pixmap.height()
+            with open(label_path,"r") as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts)!=5: continue
+                    cls_id, cx, cy, bw, bh = parts
+                    cls_id = int(cls_id)
+                    cx,cy,bw,bh = float(cx),float(cy),float(bw),float(bh)
+                    x = (cx-bw/2)*w
+                    y = (cy-bh/2)*h
+                    rect = QtCore.QRectF(x,y,bw*w,bh*h)
+                    color = QtGui.QColor.fromHsv((cls_id*40)%360,255,200)
+                    box = BoundingBox(rect,self.classes[cls_id],color)
+                    self.scene.addItem(box)
+                    self.scene.box_items.append(box)
+
+    # -------------------------------
+    # Start adding box
+    # -------------------------------
+    def start_adding_box(self,class_name):
+        self.scene.set_adding_class(class_name)
+
+    # -------------------------------
+    # Approve image
+    # -------------------------------
+    def approve_image(self):
+        if not self.current_image: return
+        label_path = os.path.join(self.dataset_path,"labels",self.current_image.replace(".png",".txt"))
+        if self.scene.box_items:
+            w = self.pixmap_item.pixmap().width()
+            h = self.pixmap_item.pixmap().height()
+            with open(label_path,"w") as f:
+                for box in self.scene.box_items:
+                    rect = box.rect()
+                    cx = (rect.x()+rect.width()/2)/w
+                    cy = (rect.y()+rect.height()/2)/h
+                    bw = rect.width()/w
+                    bh = rect.height()/h
+                    cls_id = self.classes.index(box.class_name)
+                    f.write(f"{cls_id} {cx} {cy} {bw} {bh}\n")
+        # Update tables
+        items = self.table_todo.findItems(self.current_image,QtCore.Qt.MatchExactly)
+        if items:
+            row = items[0].row()
+            self.table_todo.removeRow(row)
+            row_done = self.table_done.rowCount()
+            self.table_done.insertRow(row_done)
+            self.table_done.setItem(row_done,0,QtWidgets.QTableWidgetItem(self.current_image))
+
+# -------------------------------
+# Main
+# -------------------------------
+if __name__ == "__main__":
+    app = QtWidgets.QApplication(sys.argv)
+    window = AnnotateYoloApp()
+    window.show()
+    sys.exit(app.exec_())
+
