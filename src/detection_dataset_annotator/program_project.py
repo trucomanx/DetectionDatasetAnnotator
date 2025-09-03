@@ -18,6 +18,7 @@ from git import Repo, GitCommandError
 
 import detection_dataset_annotator.about as about
 import detection_dataset_annotator.modules.configure as configure 
+from detection_dataset_annotator.desktop import create_desktop_file, create_desktop_directory, create_desktop_menu
 from detection_dataset_annotator.modules.wabout  import show_about_window
 
 CONFIG_PATH = os.path.join( os.path.expanduser("~"),
@@ -33,19 +34,22 @@ DEFAULT_CONTENT={   "toolbar_configure": "Configure",
                     "toolbar_coffee_tooltip": "Buy me a coffee (TrucomanX)",
                     "window_width": 600,
                     "window_height": 600,
+                    "select_dataset": "<b>1. Select the dataset:</b>",
                     "select_dataset_folder": "Select dataset folder",
                     "select_dataset_folder_tooltip": "Select the directory with a dataset in YOLO style, which must include a mandatory subdirectory \"images\" containing image files.",
                     "valid_image_exts": [".png", ".bmp", ".jpg", ".jpeg"],
-                    "users_and_proportions": "Users and proportions:",
+                    "users_and_proportions": "<b>2. Users and proportions:</b>",
                     "user": "User",
                     "proportion": "Proportion",
                     "add_user": "Add user",
                     "remove_user": "Remove user",
-                    "annotation_classes": "Annotation classes:",
+                    "annotation_classes": "<b>3. Annotation classes:</b>",
                     "class": "Class",
                     "add_class": "Add class",
                     "remove_class": "Remove class",
-                    "git_repository_url":"Git repository url",
+                    "input_git_url": "<b>4. Enter the Git repository URL:</b>",
+                    "git_repository_url":"Git repository URL",
+                    "git_repository_url_tooltip":"Git repository URL like: https://[GIT_REPOSITORY.COM]/[USERNAME]/[DATASET_NAME].git",
                     "create_project": "Create project",
                     "selected_folder": "Selected folder:",
                     "selected": "Selected",
@@ -149,6 +153,7 @@ class CreateProjectApp(QMainWindow):
 
         
         # Selecionar pasta do dataset
+        layout.addWidget(QLabel(CONFIG["select_dataset"]))
         self.btn_select_dataset = QPushButton(CONFIG["select_dataset_folder"])
         self.btn_select_dataset.setIcon(QIcon.fromTheme("folder-open")) 
         self.btn_select_dataset.setToolTip(CONFIG["select_dataset_folder_tooltip"])
@@ -194,8 +199,10 @@ class CreateProjectApp(QMainWindow):
         layout.addLayout(h_layout_class)
         
         # Input URL Git
+        layout.addWidget(QLabel(CONFIG["input_git_url"]))
         self.input_git_url = QLineEdit()
         self.input_git_url.setPlaceholderText(CONFIG["git_repository_url"])
+        self.input_git_url.setToolTip(CONFIG["git_repository_url_tooltip"])
         layout.addWidget(self.input_git_url)
         
         # Botão criar projeto (só ativa no final)
@@ -350,6 +357,22 @@ class CreateProjectApp(QMainWindow):
 
 def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
+    
+    create_desktop_directory()    
+    create_desktop_menu()
+    create_desktop_file('~/.local/share/applications')
+    
+    for n in range(len(sys.argv)):
+        if sys.argv[n] == "--autostart":
+            create_desktop_directory(overwrite = True)
+            create_desktop_menu(overwrite = True)
+            create_desktop_file('~/.config/autostart', overwrite=True)
+            return
+        if sys.argv[n] == "--applications":
+            create_desktop_directory(overwrite = True)
+            create_desktop_menu(overwrite = True)
+            create_desktop_file('~/.local/share/applications', overwrite=True)
+            return
     
     app = QApplication(sys.argv)
     app.setApplicationName(about.__package__) 
