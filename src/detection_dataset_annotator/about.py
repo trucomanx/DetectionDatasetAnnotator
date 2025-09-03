@@ -3,6 +3,7 @@
 __version__ = "0.1.0"
 __package__ = "detection_dataset_annotator"
 __program_name__ = "detection-dataset-annotator"
+__program_project__ = "detection-dataset-project"
 __author__ = "Fernando Pujaico Rivera" 
 __email__  = "fernando.pujaico.rivera@gmail.com"
 __description__ = "A slight annotator of detection datasets"

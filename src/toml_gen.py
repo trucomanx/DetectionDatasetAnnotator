@@ -11,6 +11,7 @@ from detection_dataset_annotator.about import (
     __version__,
     __package__,
     __program_name__,
+    __program_project__,
     __author__,
     __email__,
     __description__,
@@ -43,10 +44,11 @@ classifiers = [
 ]
 license = "GPL-3.0-only WITH Classpath-Exception-2.0 OR BSD-3-Clause"
 license-files = ["LICENSE"]
-keywords = ["writing", "translate"]
+keywords = ["dataset", "annotator", "yolo"]
 dependencies = [
     "PyQt5",
-    "deep-consultation"
+    "GitPython",
+    "natsort"
 ]
 
 [project.urls]
@@ -56,7 +58,8 @@ dependencies = [
 "Source" = "{__url_source__}"
 
 [project.scripts]
-"{__program_name__}" = "{__package__}.program:main"
+"{__program_name__}"    = "{__package__}.program_annotator:main"
+"{__program_project__}" = "{__package__}.program_project:main"
 
 [tool.setuptools]
 packages = ["{__package__}", "{__package__}.modules"]
