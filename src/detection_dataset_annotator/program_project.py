@@ -47,6 +47,7 @@ DEFAULT_CONTENT={   "toolbar_configure": "Configure",
                     "remove_user": "Remove user",
                     "annotation_classes": "<b>3. Annotation classes:</b>",
                     "class": "Class",
+                    "color": "Color",
                     "add_class": "Add class",
                     "remove_class": "Remove class",
                     "input_git_url": "<b>4. Enter the Git repository URL:</b>",
@@ -76,6 +77,14 @@ configure.verify_default_config(CONFIG_PATH,default_content=DEFAULT_CONTENT)
 
 CONFIG=configure.load_config(CONFIG_PATH)
 
+
+
+def random_hex_color():
+    r = random.randint(0, 255)
+    g = random.randint(0, 255)
+    b = random.randint(0, 255)
+    return f"#{r:02X}{g:02X}{b:02X}"
+    
 class CreateProjectApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -185,8 +194,8 @@ class CreateProjectApp(QMainWindow):
         
         # --- Classes ---
         layout.addWidget(QLabel(CONFIG["annotation_classes"]))
-        self.class_table = QTableWidget(0, 1)
-        self.class_table.setHorizontalHeaderLabels([CONFIG["class"]])
+        self.class_table = QTableWidget(0, 2)
+        self.class_table.setHorizontalHeaderLabels([CONFIG["class"],CONFIG["color"]])
         self.class_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.class_table)
         
@@ -244,6 +253,7 @@ class CreateProjectApp(QMainWindow):
         row = self.class_table.rowCount()
         self.class_table.insertRow(row)
         self.class_table.setItem(row, 0, QTableWidgetItem(f"class{row+1}"))
+        self.class_table.setItem(row, 1, QTableWidgetItem(random_hex_color()))
     
     def remove_class_row(self):
         row = self.class_table.currentRow()
@@ -296,10 +306,16 @@ class CreateProjectApp(QMainWindow):
         
         # Lê classes
         classes = []
+        classes_colors = []
         for row in range(self.class_table.rowCount()):
-            class_item = self.class_table.item(row, 0)
+            class_item  = self.class_table.item(row, 0)
+            class_color = self.class_table.item(row, 1)
             if class_item:
                 classes.append(class_item.text())
+                if len(class_color.text())>0:
+                    classes_colors.append(class_color.text())
+                else:
+                    classes_colors.append(random_hex_color())
         if not classes:
             QMessageBox.warning(self, CONFIG["error"], CONFIG["add_one_class"])
             return
@@ -324,6 +340,7 @@ class CreateProjectApp(QMainWindow):
         # Criar config.json
         config_data = {
             "classes": classes,
+            "classes_colors": classes_colors,
             "birth_date": QDateTime.currentDateTime().toString(Qt.ISODate)
         }
         for user, imgs in images_per_user.items():

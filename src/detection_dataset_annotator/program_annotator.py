@@ -147,67 +147,79 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
     def init_ui(self):
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
-        layout = QtWidgets.QHBoxLayout()
-        central.setLayout(layout)
+        main_layout = QtWidgets.QHBoxLayout()
+        central.setLayout(main_layout)
 
         # Left panel
-        left_panel = QtWidgets.QVBoxLayout()
+        left_panel_widget = QtWidgets.QWidget()
+        left_panel_layout = QtWidgets.QVBoxLayout()
+        left_panel_widget.setLayout(left_panel_layout)
 
         self.btn_select_dataset = QtWidgets.QPushButton("Select Dataset Folder")
         self.btn_select_dataset.clicked.connect(self.select_dataset)
-        left_panel.addWidget(self.btn_select_dataset)
+        left_panel_layout.addWidget(self.btn_select_dataset)
 
-        left_panel.addWidget(QtWidgets.QLabel("To Annotate"))
+        left_panel_layout.addWidget(QtWidgets.QLabel("To Annotate"))
         self.table_todo = QtWidgets.QTableWidget(0,1)
         self.table_todo.setHorizontalHeaderLabels(["Image"])
         self.table_todo.itemSelectionChanged.connect(self.display_selected_image)
-        left_panel.addWidget(self.table_todo)
+        left_panel_layout.addWidget(self.table_todo)
 
-        left_panel.addWidget(QtWidgets.QLabel("Annotated"))
+        left_panel_layout.addWidget(QtWidgets.QLabel("Annotated"))
         self.table_done = QtWidgets.QTableWidget(0,1)
         self.table_done.setHorizontalHeaderLabels(["Image"])
         self.table_done.itemSelectionChanged.connect(self.display_selected_image)
-        left_panel.addWidget(self.table_done)
+        left_panel_layout.addWidget(self.table_done)
 
         self.btn_commit = QtWidgets.QPushButton("Commit & Push")
         self.btn_commit.clicked.connect(self.commit_push)
-        left_panel.addWidget(self.btn_commit)
+        left_panel_layout.addWidget(self.btn_commit)
 
-        layout.addLayout(left_panel,1)
+        # Right panel
+        right_panel_widget = QtWidgets.QWidget()
+        right_panel_layout = QtWidgets.QVBoxLayout()
+        right_panel_widget.setLayout(right_panel_layout)
 
-        # Right panel: QGraphicsView
-        right_panel = QtWidgets.QVBoxLayout()
-        
-        # Buton
         btn_approve = QtWidgets.QPushButton("Approve")
         btn_approve.clicked.connect(lambda: self.approve_image())
-        right_panel.addWidget(btn_approve)
-        
-        # Current image
+        right_panel_layout.addWidget(btn_approve)
+
         self.lbl_current_image = QtWidgets.QLabel("...")
         self.lbl_current_image.setAlignment(QtCore.Qt.AlignCenter)
-        right_panel.addWidget(self.lbl_current_image)
-        
-        # View
+        right_panel_layout.addWidget(self.lbl_current_image)
+
         self.scene = AnnotateScene()
         self.view = QtWidgets.QGraphicsView(self.scene)
         self.view.setRenderHint(QtGui.QPainter.Antialiasing)
-        right_panel.addWidget(self.view)
+        right_panel_layout.addWidget(self.view)
 
-        # Buttons container
         self.class_buttons_layout = QtWidgets.QHBoxLayout()
-        right_panel.addLayout(self.class_buttons_layout)
+        right_panel_layout.addLayout(self.class_buttons_layout)
 
-        layout.addLayout(right_panel,2)
+        # QSplitter para fronteira móvel
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        splitter.addWidget(left_panel_widget)
+        splitter.addWidget(right_panel_widget)
+        splitter.setStretchFactor(0, 1)  # left panel
+        splitter.setStretchFactor(1, 2)  # right panel
+
+        main_layout.addWidget(splitter)
 
 
-    def change_selected_box_class(self, new_class):
+
+    def change_selected_box_class(self, new_class):       
+        try:
+            cls_id = self.classes.index(new_class)
+        except ValueError:
+            return
+        
+        
         for box in self.scene.selectedItems():
             if isinstance(box, BoundingBox):
                 box.class_name = new_class
                 box.text_item.setText(new_class)
                 # Atualiza cor
-                box.color = QtGui.QColor.fromHsv(hash(new_class)%360, 255, 200)
+                box.color = QtGui.QColor(self.classes_colors[cls_id])
                 box.setPen(QtGui.QPen(box.color, 2))
                 box.text_item.setBrush(QtGui.QBrush(box.color))
 
@@ -276,6 +288,7 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
         with open(config_path,"r") as f:
             self.config = json.load(f)
         self.classes = self.config.get("classes",[])
+        self.classes_colors = self.config.get("classes_colors",[])
 
     def save_config(self):
         config_path = os.path.join(self.dataset_path, "config.json")
@@ -317,13 +330,29 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
     # Class buttons
     # -------------------------------
     def create_class_buttons(self):
+        # limpa os botões antigos
         for i in reversed(range(self.class_buttons_layout.count())):
             w = self.class_buttons_layout.itemAt(i).widget()
-            if w: w.setParent(None)
-        for cls in self.classes:
+            if w: 
+                w.setParent(None)
+        
+        # cria os novos botões
+        for cls, color in zip(self.classes, self.classes_colors):
             btn = QtWidgets.QPushButton(cls)
-            #btn.clicked.connect(lambda checked,c=cls: self.start_adding_box(c))
+            
+            # cria o quadrado colorido
+            pixmap = QtGui.QPixmap(24, 24)
+            pixmap.fill(QtGui.QColor(color))  # color pode ser "#335599" ou QColor
+            icon = QtGui.QIcon(pixmap)
+
+            # adiciona o ícone ao botão
+            btn.setIcon(icon)
+            btn.setIconSize(QtCore.QSize(24, 24))
+            
+            # conecta o clique
             btn.clicked.connect(lambda checked,c=cls: self.on_class_button(c))
+            
+            # adiciona ao layout
             self.class_buttons_layout.addWidget(btn)
 
 
@@ -370,7 +399,7 @@ class AnnotateYoloApp(QtWidgets.QMainWindow):
                     x = (cx-bw/2)*w
                     y = (cy-bh/2)*h
                     rect = QtCore.QRectF(x,y,bw*w,bh*h)
-                    color = QtGui.QColor.fromHsv((cls_id*40)%360,255,200)
+                    color = QtGui.QColor(self.classes_colors[cls_id])
                     box = BoundingBox(rect,self.classes[cls_id],color)
                     self.scene.addItem(box)
                     self.scene.box_items.append(box)
