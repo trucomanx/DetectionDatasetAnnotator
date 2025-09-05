@@ -1,3 +1,5 @@
 /src/detection_dataset_annotator/__pycache__/
 /src/detection_dataset_annotator/modules/__pycache__/
 /src/pyproject.toml
+/src/detection_dataset_annotator.egg-info/
+/src/dist/
