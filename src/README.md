@@ -17,11 +17,18 @@ Execute `which detection-dataset-annotator` to see where it was installed, proba
 
 ### Using
 
-To start, use the command below:
+To start the project generator, use the command below:
+
+```bash
+detection-dataset-project
+```
+
+To start the annotator, use the command below:
 
 ```bash
 detection-dataset-annotator
 ```
+
 ## 2. More information
 
 If you want more information go to [doc](https://github.com/trucomanx/DetectionDatasetAnnotator/blob/main/doc) directory.
