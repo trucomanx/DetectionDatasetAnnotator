@@ -58,7 +58,7 @@ dependencies = [
 "Source" = "{__url_source__}"
 
 [project.scripts]
-"{__program_name__}"    = "{__package__}.program_annotator:main"
+"{__program_name__}" = "{__package__}.program_annotator:main"
 "{__program_project__}" = "{__package__}.program_project:main"
 
 [tool.setuptools]
