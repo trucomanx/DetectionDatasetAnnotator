@@ -13,7 +13,8 @@ from git import Repo, GitCommandError
 from PyQt5.QtWidgets import ( QMainWindow, QGraphicsItem, QGraphicsSimpleTextItem, 
     QApplication, QSizePolicy, QWidget, QAction, QFileDialog, QGraphicsScene,
     QGraphicsRectItem, QHBoxLayout, QVBoxLayout, QGraphicsView, QSplitter, QMessageBox, 
-    QTableWidgetItem, QPushButton, QInputDialog, QLabel, QTableWidget)
+    QTableWidgetItem, QPushButton, QInputDialog, QLabel, QTableWidget, QAbstractItemView,
+    QHeaderView)
 from PyQt5.QtCore import Qt, QUrl, QRectF
 from PyQt5.QtGui import QDesktopServices, QIcon, QColor, QPen, QBrush, QPainter, QPixmap
 
@@ -277,13 +278,25 @@ class AnnotateYoloApp(QMainWindow):
 
         left_panel_layout.addWidget(QLabel(CONFIG["to_annotate"]))
         self.table_todo = QTableWidget(0,1)
+        self.table_todo.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table_todo.setSelectionBehavior(QAbstractItemView.SelectItems)  # célula por célula
+        self.table_todo.setSelectionMode(QAbstractItemView.ExtendedSelection)  # múltiplas seleções
+        #self.table_todo.setTextElideMode(QtCore.Qt.ElideNone)  # evita cortar texto visualmente
+        self.table_todo.setDragEnabled(False)
         self.table_todo.setHorizontalHeaderLabels(["Image"])
+        self.table_todo.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_todo.itemSelectionChanged.connect(self.display_selected_image)
         left_panel_layout.addWidget(self.table_todo)
 
         left_panel_layout.addWidget(QLabel(CONFIG["annotated"]))
         self.table_done = QTableWidget(0,1)
+        self.table_done.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table_done.setSelectionBehavior(QAbstractItemView.SelectItems)  # célula por célula
+        self.table_done.setSelectionMode(QAbstractItemView.ExtendedSelection)  # múltiplas seleções
+        #self.table_done.setTextElideMode(QtCore.Qt.ElideNone)  # evita cortar texto visualmente
+        self.table_done.setDragEnabled(False)
         self.table_done.setHorizontalHeaderLabels(["Image"])
+        self.table_done.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_done.itemSelectionChanged.connect(self.display_selected_image)
         left_panel_layout.addWidget(self.table_done)
 
@@ -487,12 +500,20 @@ class AnnotateYoloApp(QMainWindow):
     # Display image
     # -------------------------------
     def display_selected_image(self):
-        items = self.sender().selectedItems()
-        if not items: return
+        sender = self.sender()
+        items = sender.selectedItems()
+        if not items: 
+            return
+
         img_name = items[0].text()
         self.current_image = img_name
         self.load_image_and_boxes(img_name)
         self.lbl_current_image.setText(self.current_image)
+        
+        if sender is self.table_todo:
+            self.table_done.clearSelection()
+        elif sender is self.table_done:
+            self.table_todo.clearSelection()
 
     def load_image_and_boxes(self,img_name):
         self.scene.clear()
