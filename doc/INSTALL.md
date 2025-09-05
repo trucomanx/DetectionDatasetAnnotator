@@ -14,6 +14,7 @@ pip install --upgrade detection-dataset-annotator
 Using:
 
 ```bash
+detection-dataset-project
 detection-dataset-annotator
 ```
 
@@ -31,6 +32,7 @@ pip install dist/detection_dataset_annotator-*.tar.gz
 Using:
 
 ```bash
+detection-dataset-project
 detection-dataset-annotator
 ```
 
