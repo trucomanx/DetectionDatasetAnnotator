@@ -6,13 +6,15 @@ import json
 import subprocess
 import signal
 
+import tempfile
+
 from PyQt5 import QtWidgets, QtCore, QtGui
 from git import Repo, GitCommandError
 #from natsort import natsorted
 
-from PyQt5.QtWidgets import ( QMainWindow, QGraphicsItem, QGraphicsSimpleTextItem, 
-    QApplication, QSizePolicy, QWidget, QAction, QFileDialog, QGraphicsScene,
-    QGraphicsRectItem, QHBoxLayout, QVBoxLayout, QGraphicsView, QSplitter, QMessageBox, 
+from PyQt5.QtWidgets import ( QMainWindow, QGraphicsItem, QGraphicsSimpleTextItem, QProgressBar, 
+    QApplication, QSizePolicy, QWidget, QAction, QFileDialog, QGraphicsScene, QLineEdit, 
+    QGraphicsRectItem, QHBoxLayout, QVBoxLayout, QFormLayout, QGraphicsView, QSplitter, QMessageBox, 
     QTableWidgetItem, QPushButton, QInputDialog, QLabel, QTableWidget, QAbstractItemView,
     QHeaderView)
 from PyQt5.QtCore import Qt, QUrl, QRectF
@@ -39,7 +41,9 @@ DEFAULT_CONTENT={   "toolbar_configure": "Configure",
                     "select_dataset_folder": "Select dataset folder",
                     "to_annotate": "<b>To Annotate:</b>",
                     "annotated": "<b>Annotated:</b>",
-                    "commit_and_push": "Commit & Push",
+                    "dataset": "Dataset:",
+                    "user": "User:",
+                    "commit_and_push": "Auto commit and push",
                     "approve": "Approve",
                     "error": "Error",
                     "config_no_found": "No users found in config.json",
@@ -203,6 +207,7 @@ class AnnotateYoloApp(QMainWindow):
         self.current_image = ""
         self.create_toolbar()
         self.init_ui()
+        self.init_progress_ui()
 
     def create_toolbar(self):
         # Toolbar exemplo (você pode adicionar actions depois)
@@ -275,6 +280,29 @@ class AnnotateYoloApp(QMainWindow):
         self.btn_select_dataset.setIcon(QIcon.fromTheme("folder-open")) 
         self.btn_select_dataset.clicked.connect(self.select_dataset)
         left_panel_layout.addWidget(self.btn_select_dataset)
+        
+        self.form_layout = QFormLayout()
+        #
+        self.lbl_dataset = QLineEdit()
+        self.lbl_dataset.setPlaceholderText("...")
+        self.lbl_dataset.setReadOnly(True)  
+        self.form_layout.addRow(CONFIG["dataset"], self.lbl_dataset)
+        #
+        self.lbl_user = QLineEdit()
+        self.lbl_user.setPlaceholderText("...")
+        self.lbl_user.setReadOnly(True)  
+        self.form_layout.addRow(CONFIG["user"], self.lbl_user)
+        #
+        left_panel_layout.addLayout(self.form_layout)
+
+
+        self.btn_update_dataset = QPushButton("Update dataset")
+        self.btn_update_dataset.setIcon(QIcon.fromTheme("go-bottom")) 
+        self.btn_update_dataset.clicked.connect(self.update_dataset)
+        self.btn_update_dataset.hide()
+        left_panel_layout.addWidget(self.btn_update_dataset)
+
+
 
         left_panel_layout.addWidget(QLabel(CONFIG["to_annotate"]))
         self.table_todo = QTableWidget(0,1)
@@ -303,6 +331,7 @@ class AnnotateYoloApp(QMainWindow):
         self.btn_commit = QPushButton(CONFIG["commit_and_push"])
         self.btn_commit.setIcon(QIcon.fromTheme("go-next")) 
         self.btn_commit.clicked.connect(self.commit_push)
+        self.btn_commit.hide()
         left_panel_layout.addWidget(self.btn_commit)
 
         # Right panel
@@ -310,10 +339,11 @@ class AnnotateYoloApp(QMainWindow):
         right_panel_layout = QVBoxLayout()
         right_panel_widget.setLayout(right_panel_layout)
 
-        btn_approve = QPushButton(CONFIG["approve"])
-        btn_approve.setIcon(QIcon.fromTheme("insert-object")) 
-        btn_approve.clicked.connect(lambda: self.approve_image())
-        right_panel_layout.addWidget(btn_approve)
+        self.btn_approve = QPushButton(CONFIG["approve"])
+        self.btn_approve.setIcon(QIcon.fromTheme("insert-object")) 
+        self.btn_approve.clicked.connect(lambda: self.approve_image())
+        self.btn_approve.hide()
+        right_panel_layout.addWidget(self.btn_approve)
 
         self.lbl_current_image = QLabel("...")
         self.lbl_current_image.setAlignment(Qt.AlignCenter)
@@ -336,7 +366,16 @@ class AnnotateYoloApp(QMainWindow):
 
         main_layout.addWidget(splitter)
 
-
+    def init_progress_ui(self):
+        # Criar barra de progresso
+        self.progress = QProgressBar()
+        self.progress.setMinimum(0)   # valor inicial
+        self.progress.setValue(0)  # exemplo: 40%
+        self.progress.setFormat("%v/%m")  
+        
+        # Adicionar na status bar
+        self.statusBar().addPermanentWidget(self.progress)
+        
     def change_selected_box_class(self, new_class):       
         try:
             cls_id = self.classes.index(new_class)
@@ -360,6 +399,9 @@ class AnnotateYoloApp(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self,CONFIG["select_dataset_folder"])
         if folder:
             self.dataset_path = folder
+            
+            
+            
             self.load_config()
 
             users = [key.replace("images_","") for key in self.config if key.startswith("images_")]
@@ -369,8 +411,24 @@ class AnnotateYoloApp(QMainWindow):
             user, ok = QInputDialog.getItem(self,CONFIG["select_user"],CONFIG["choose_your_user"],users,0,False)
             if not ok: return
             self.user = user
+            
+            self.lbl_dataset.setText(folder)
+            self.lbl_user.setText(user)
 
+            self.init_git()            
+            self.populate_tables()
+            self.create_class_buttons()
+            
+            self.btn_update_dataset.show()
+            self.btn_commit.show()
+            self.btn_approve.show()
+
+
+    def update_dataset(self):
             self.init_git()
+            
+            self.pull_remote()
+            
             self.populate_tables()
             self.create_class_buttons()
 
@@ -391,21 +449,120 @@ class AnnotateYoloApp(QMainWindow):
         except GitCommandError as e:
             QMessageBox.warning(self,CONFIG["error_git"],str(e))
 
-    def commit_push(self):
-        if not self.repo: return
+    def pull_remote(self):
+        """
+        Atualiza o repositório local com o conteúdo do remoto,
+        modificando os arquivos da pasta de trabalho para refletir o remoto.
+        """
+        if not hasattr(self, "repo") or self.repo is None:
+            QMessageBox.warning(self, CONFIG["error_git"], "Uninitialized Git repository.")
+            return
+
         try:
+            # Tenta identificar o branch atual
+            try:
+                branch = self.repo.active_branch
+            except TypeError:
+                QMessageBox.warning(
+                    self,
+                    CONFIG["error_git"],
+                    "HEAD is detached. Make a checkout on a branch before updating."
+                )
+                return
+
+            # Garante que há pelo menos um remoto
+            if not self.repo.remotes:
+                QMessageBox.warning(
+                    self,
+                    CONFIG["error_git"],
+                    "No remote configured. Unable to update."
+                )
+                return
+
+            # Pull do remoto com rebase para atualizar o working tree
+            try:
+                self.repo.git.pull("--rebase", "origin", branch.name)
+                QMessageBox.information(self, CONFIG["name_git"], f"Repository updated to the branch '{branch.name}'.")
+            except GitCommandError as e:
+                QMessageBox.warning(
+                    self,
+                    CONFIG["error_git"],
+                    "Conflict detected during pull.\nResolve conflicts manually.\n\n" + str(e)
+                )
+
+        except GitCommandError as e:
+            QMessageBox.warning(self, CONFIG["error_git"], str(e))
+
+
+    def commit_push(self):
+        if not self.repo:
+            return
+
+        try:
+            # 0. Verifica se HEAD está detached
+            try:
+                branch = self.repo.active_branch
+            except TypeError:
+                QMessageBox.warning(
+                    self,
+                    CONFIG["error_git"],
+                    "HEAD is detached. Make a checkout on a branch before making a commit."
+                )
+                return
+
+            # 1. Buscar a versão remota do config.json
+            try:
+                remote_file = self.repo.git.show(f"origin/{branch.name}:config.json")
+                remote_config = json.loads(remote_file)
+            except GitCommandError:
+                remote_config = {}  # caso não exista ainda no remoto
+
+            # 2. Mescla apenas a chave do usuário
+            key_user = f"images_{self.user}"
+            if key_user in self.config:
+                remote_config[key_user] = self.config[key_user].copy()
+
+            # 3. Salva o config.json mesclado
+            config_path = os.path.join(self.dataset_path, "config.json")
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(remote_config, f, indent=4, ensure_ascii=False)
+
+            # 4. Adiciona arquivos ao índice e faz commit local
             self.repo.git.add("labels")
             self.repo.git.add("config.json")
-            self.repo.index.commit(CONFIG["update_annotations_by"]+f" {self.user}")
+            self.repo.git.add("README.md")
+
+            self.repo.index.commit(CONFIG["update_annotations_by"] + f" {self.user}")
+
+            # 5. Pull --rebase para sincronizar com remoto
+            try:
+                self.repo.git.pull("--rebase", "origin", branch.name)
+            except GitCommandError as e:
+                QMessageBox.warning(
+                    self,
+                    CONFIG["error_git"],
+                    "Conflict detected in 'config.json' or other files.\n\n"
+                    "Resolve conflicts manually and then click Commit again.\n\n"
+                    f"Details:\n{str(e)}"
+                )
+                return  # aborta push até conflito ser resolvido
+
+            # 6. Push após sincronizar
+            output_messages = []
             for remote in self.repo.remotes:
-                branch = self.repo.active_branch
                 try:
-                    remote.push(refspec=f"{branch.name}:{branch.name}", set_upstream=True)
-                except GitCommandError:
-                    remote.push(refspec=f"{branch.name}:{branch.name}")
-            QMessageBox.information(self,CONFIG["name_git"],CONFIG["changes_pushed"])
+                    msg = remote.push(refspec=f"{branch.name}:{branch.name}", set_upstream=True)
+                    output_messages.append(str(msg))
+                except GitCommandError as e:
+                    msg = remote.push(refspec=f"{branch.name}:{branch.name}")
+                    output_messages.append(str(msg))
+                    QMessageBox.warning(self, CONFIG["error_git"], str(e))
+
+            QMessageBox.information(self, CONFIG["name_git"], "\n".join(output_messages))
+
         except GitCommandError as e:
-            QMessageBox.warning(self,CONFIG["error_git"],str(e))
+            QMessageBox.warning(self, CONFIG["error_git"], str(e))
+
 
     # -------------------------------
     # Config
@@ -439,6 +596,8 @@ class AnnotateYoloApp(QMainWindow):
         
         #user_images = natsorted(user_images)
 
+        self.progress.setMaximum(len(user_data_images))   # valor inicial
+
         for img_name in user_data_images:
             approved = user_data_images[img_name]
             
@@ -455,6 +614,9 @@ class AnnotateYoloApp(QMainWindow):
             row = table.rowCount()
             table.insertRow(row)
             table.setItem(row, 0, QTableWidgetItem(img_name))
+
+        self.progress.setValue(self.table_done.rowCount())
+
 
     # -------------------------------
     # Class buttons
@@ -579,6 +741,8 @@ class AnnotateYoloApp(QMainWindow):
 
         self.config[f"images_{self.user}"][self.current_image]=True
         self.save_config()
+        
+        self.progress.setValue(self.table_done.rowCount())
         
 # -------------------------------
 # Main

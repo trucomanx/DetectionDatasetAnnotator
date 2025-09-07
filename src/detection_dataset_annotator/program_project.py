@@ -271,6 +271,7 @@ class CreateProjectApp(QMainWindow):
         images_path = os.path.join(self.dataset_path, "images")
         labels_path = os.path.join(self.dataset_path, "labels")
         config_path = os.path.join(self.dataset_path, "config.json")
+        readme_path = os.path.join(self.dataset_path, "README.md")
         
         # Verifica se existem imagens
         valid_exts = CONFIG["valid_image_exts"]
@@ -352,6 +353,10 @@ class CreateProjectApp(QMainWindow):
         
         QMessageBox.information(self, CONFIG["success"], CONFIG["project_created"])
         
+        # Crio readme se nao existe
+        with open(readme_path, 'a'):
+            pass 
+        
         # Commit inicial no Git
         git_url = self.input_git_url.text().strip()
         if git_url:
@@ -362,6 +367,7 @@ class CreateProjectApp(QMainWindow):
                     repo = Repo(self.dataset_path)
                 repo.git.add("labels")
                 repo.git.add("config.json")
+                repo.git.add("README.md")
                 repo.index.commit(CONFIG["git_initial_commit"])
                 
                 origin = None
