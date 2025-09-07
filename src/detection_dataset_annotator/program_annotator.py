@@ -52,6 +52,13 @@ DEFAULT_CONTENT={   "toolbar_configure": "Configure",
                     "remote_url": "Remote URL",
                     "enter_git_remote_url": "Enter Git remote URL:",
                     "git_remote": "origin",
+                    "conflict_detected_git": "Conflict detected in 'config.json' or other files.\n\nResolve conflicts manually and then click Commit again.\n\nDetails:",
+                    "pull_conflict": "Conflict detected during pull.\nResolve conflicts manually.",
+                    "no_remote_configured": "No remote configured. Unable to update.",
+                    "repository_updated": "Repository updated to the branch", 
+                    "head_detached_commit": "HEAD is detached. Make a checkout on a branch before making a commit.", 
+                    "head_detached_pull": "HEAD is detached. Make a checkout on a branch before making an update.",
+                    "uninitialized": "Uninitialized Git repository.", 
                     "error_git": "Git Error",
                     "update_annotations_by": "Update annotations by",
                     "not_found": "not found!",
@@ -137,12 +144,14 @@ class AnnotateScene(QGraphicsScene):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.adding_class = None
+        self.adding_color = None
         self.temp_rect_item = None
         self.start_pos = None
         self.box_items = []
 
-    def set_adding_class(self, class_name):
+    def set_adding_class(self, class_name, color_name):
         self.adding_class = class_name
+        self.adding_color = color_name
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Delete:
@@ -159,7 +168,7 @@ class AnnotateScene(QGraphicsScene):
         if self.adding_class:
             self.start_pos = event.scenePos()
             self.temp_rect_item = QGraphicsRectItem(QRectF(self.start_pos, self.start_pos))
-            self.temp_rect_item.setPen(QPen(QColor(255,0,0),2,Qt.DashLine))
+            self.temp_rect_item.setPen(QPen(QColor(self.adding_color),2,Qt.DashLine))
             self.addItem(self.temp_rect_item)
         else:
             super().mousePressEvent(event)
@@ -175,7 +184,8 @@ class AnnotateScene(QGraphicsScene):
         if self.temp_rect_item:
             rect = self.temp_rect_item.rect()
             if rect.width() > 5 and rect.height() > 5:
-                color = QColor.fromHsv(hash(self.adding_class)%360, 255, 200)
+                color = QColor(self.adding_color)
+                
                 box = BoundingBox(rect, self.adding_class, color)
                 self.addItem(box)
                 self.box_items.append(box)
@@ -347,6 +357,7 @@ class AnnotateYoloApp(QMainWindow):
 
         self.lbl_current_image = QLabel("...")
         self.lbl_current_image.setAlignment(Qt.AlignCenter)
+        self.lbl_current_image.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard)
         right_panel_layout.addWidget(self.lbl_current_image)
 
         self.scene = AnnotateScene()
@@ -455,7 +466,7 @@ class AnnotateYoloApp(QMainWindow):
         modificando os arquivos da pasta de trabalho para refletir o remoto.
         """
         if not hasattr(self, "repo") or self.repo is None:
-            QMessageBox.warning(self, CONFIG["error_git"], "Uninitialized Git repository.")
+            QMessageBox.warning(self, CONFIG["error_git"], CONFIG["uninitialized"])
             return
 
         try:
@@ -466,7 +477,7 @@ class AnnotateYoloApp(QMainWindow):
                 QMessageBox.warning(
                     self,
                     CONFIG["error_git"],
-                    "HEAD is detached. Make a checkout on a branch before updating."
+                    CONFIG["head_detached_pull"]
                 )
                 return
 
@@ -475,19 +486,19 @@ class AnnotateYoloApp(QMainWindow):
                 QMessageBox.warning(
                     self,
                     CONFIG["error_git"],
-                    "No remote configured. Unable to update."
+                    CONFIG["no_remote_configured"]
                 )
                 return
 
             # Pull do remoto com rebase para atualizar o working tree
             try:
                 self.repo.git.pull("--rebase", "origin", branch.name)
-                QMessageBox.information(self, CONFIG["name_git"], f"Repository updated to the branch '{branch.name}'.")
+                QMessageBox.information(self, CONFIG["name_git"], CONFIG["repository_updated"]+f" '{branch.name}'.")
             except GitCommandError as e:
                 QMessageBox.warning(
                     self,
                     CONFIG["error_git"],
-                    "Conflict detected during pull.\nResolve conflicts manually.\n\n" + str(e)
+                    CONFIG["pull_conflict"] + "\n\n" + str(e)
                 )
 
         except GitCommandError as e:
@@ -506,7 +517,7 @@ class AnnotateYoloApp(QMainWindow):
                 QMessageBox.warning(
                     self,
                     CONFIG["error_git"],
-                    "HEAD is detached. Make a checkout on a branch before making a commit."
+                    CONFIG["head_detached_commit"]
                 )
                 return
 
@@ -541,9 +552,7 @@ class AnnotateYoloApp(QMainWindow):
                 QMessageBox.warning(
                     self,
                     CONFIG["error_git"],
-                    "Conflict detected in 'config.json' or other files.\n\n"
-                    "Resolve conflicts manually and then click Commit again.\n\n"
-                    f"Details:\n{str(e)}"
+                    CONFIG["conflict_detected_git"] + f"\n{str(e)}"
                 )
                 return  # aborta push até conflito ser resolvido
 
@@ -708,7 +717,10 @@ class AnnotateYoloApp(QMainWindow):
     # Start adding box
     # -------------------------------
     def start_adding_box(self,class_name):
-        self.scene.set_adding_class(class_name)
+        cls_id = self.classes.index(class_name)
+        color_name = self.classes_colors[cls_id]
+        
+        self.scene.set_adding_class(class_name, color_name)
 
     # -------------------------------
     # Approve image
