@@ -615,9 +615,8 @@ class AnnotateYoloApp(QMainWindow):
                 continue
 
             # procura o txt correspondente
-            label_path = os.path.join(
-                self.dataset_path, "labels", img_name.replace(".png", ".txt")
-            )
+            nome_base, _ = os.path.splitext(img_name)
+            label_path = os.path.join(self.dataset_path, "labels", nome_base + ".txt")
 
             table = self.table_todo if not approved else self.table_done
             row = table.rowCount()
@@ -695,7 +694,8 @@ class AnnotateYoloApp(QMainWindow):
         self.view.fitInView(self.pixmap_item,Qt.KeepAspectRatio)
 
         # Load YOLO labels
-        label_path = os.path.join(self.dataset_path,"labels",img_name.replace(".png",".txt"))
+        nome_base, _ = os.path.splitext(img_name)
+        label_path = os.path.join(self.dataset_path, "labels", nome_base + ".txt")
         if os.path.exists(label_path):
             w,h = pixmap.width(), pixmap.height()
             with open(label_path,"r") as f:
@@ -727,7 +727,8 @@ class AnnotateYoloApp(QMainWindow):
     # -------------------------------
     def approve_image(self):
         if not self.current_image: return
-        label_path = os.path.join(self.dataset_path,"labels",self.current_image.replace(".png",".txt"))
+        nome_base, _ = os.path.splitext(self.current_image)
+        label_path = os.path.join(self.dataset_path, "labels", nome_base + ".txt")
         
         if self.scene.box_items:
             w = self.pixmap_item.pixmap().width()
