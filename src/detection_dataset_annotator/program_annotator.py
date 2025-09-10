@@ -726,35 +726,46 @@ class AnnotateYoloApp(QMainWindow):
     # Approve image
     # -------------------------------
     def approve_image(self):
-        if not self.current_image: return
+        if not self.current_image:
+            return
+
         nome_base, _ = os.path.splitext(self.current_image)
         label_path = os.path.join(self.dataset_path, "labels", nome_base + ".txt")
         
         if self.scene.box_items:
             w = self.pixmap_item.pixmap().width()
             h = self.pixmap_item.pixmap().height()
-            with open(label_path,"w") as f:
+            with open(label_path, "w") as f:
                 for box in self.scene.box_items:
-                    rect = box.rect()
-                    cx = (rect.x()+rect.width()/2)/w
-                    cy = (rect.y()+rect.height()/2)/h
-                    bw = rect.width()/w
-                    bh = rect.height()/h
+                    # Usa as coordenadas em cena (posição + rect do item)
+                    rect = box.sceneBoundingRect()
+                    x = rect.x()
+                    y = rect.y()
+                    bw_px = rect.width()
+                    bh_px = rect.height()
+
+                    cx = (x + bw_px / 2) / w
+                    cy = (y + bh_px / 2) / h
+                    bw = bw_px / w
+                    bh = bh_px / h
+
                     cls_id = self.classes.index(box.class_name)
                     f.write(f"{cls_id} {cx} {cy} {bw} {bh}\n")
         
         # Update tables
-        items = self.table_todo.findItems(self.current_image,Qt.MatchExactly)
+        items = self.table_todo.findItems(self.current_image, Qt.MatchExactly)
         if items:
             row = items[0].row()
             self.table_todo.removeRow(row)
             row_done = self.table_done.rowCount()
             self.table_done.insertRow(row_done)
-            self.table_done.setItem(row_done,0,QTableWidgetItem(self.current_image))
+            self.table_done.setItem(row_done, 0, QTableWidgetItem(self.current_image))
 
-        self.config[f"images_{self.user}"][self.current_image]=True
+        # Atualiza config
+        self.config[f"images_{self.user}"][self.current_image] = True
         self.save_config()
         
+        # Atualiza progresso
         self.progress.setValue(self.table_done.rowCount())
         
 # -------------------------------
