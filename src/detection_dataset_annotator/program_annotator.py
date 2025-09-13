@@ -39,6 +39,7 @@ DEFAULT_CONTENT={   "toolbar_configure": "Configure",
                     "window_width": 1200,
                     "window_height": 800,
                     "select_dataset_folder": "Select dataset folder",
+                    "update_dataset": "Update dataset",
                     "to_annotate": "<b>To Annotate:</b>",
                     "annotated": "<b>Annotated:</b>",
                     "dataset": "Dataset:",
@@ -306,7 +307,7 @@ class AnnotateYoloApp(QMainWindow):
         left_panel_layout.addLayout(self.form_layout)
 
 
-        self.btn_update_dataset = QPushButton("Update dataset")
+        self.btn_update_dataset = QPushButton(CONFIG["update_dataset"])
         self.btn_update_dataset.setIcon(QIcon.fromTheme("go-bottom")) 
         self.btn_update_dataset.clicked.connect(self.update_dataset)
         self.btn_update_dataset.hide()
@@ -436,12 +437,14 @@ class AnnotateYoloApp(QMainWindow):
 
 
     def update_dataset(self):
-            self.init_git()
-            
-            self.pull_remote()
-            
-            self.populate_tables()
-            self.create_class_buttons()
+        self.setEnabled(False)
+        self.init_git()
+        
+        self.pull_remote()
+        
+        self.populate_tables()
+        self.create_class_buttons()
+        self.setEnabled(True)
 
     # -------------------------------
     # Git
@@ -506,7 +509,9 @@ class AnnotateYoloApp(QMainWindow):
 
 
     def commit_push(self):
+        self.setEnabled(False)
         if not self.repo:
+            self.setEnabled(True)
             return
 
         try:
@@ -514,6 +519,7 @@ class AnnotateYoloApp(QMainWindow):
             try:
                 branch = self.repo.active_branch
             except TypeError:
+                self.setEnabled(True)
                 QMessageBox.warning(
                     self,
                     CONFIG["error_git"],
@@ -538,17 +544,37 @@ class AnnotateYoloApp(QMainWindow):
             with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(remote_config, f, indent=4, ensure_ascii=False)
 
-            # 4. Adiciona arquivos ao índice e faz commit local
+            # 4. Adiciona arquivos ao índice
             self.repo.git.add("labels")
             self.repo.git.add("config.json")
             self.repo.git.add("README.md")
 
-            self.repo.index.commit(CONFIG["update_annotations_by"] + f" {self.user}")
+            # 4.1 Pede a mensagem de commit ao usuário
+            default_msg = CONFIG["update_annotations_by"] + f" {self.user}"
+
+            dlg = QInputDialog(self)
+            dlg.setWindowTitle(CONFIG["name_git"])
+            dlg.setLabelText("Mensagem de commit:")
+            dlg.setTextValue(default_msg)
+
+            # Ajusta tamanho da janela (largura x altura)
+            dlg.resize(600, 120)
+
+            ok = dlg.exec_()
+            commit_msg = dlg.textValue() if ok else None
+
+            if not ok:  # usuário cancelou
+                self.setEnabled(True)
+                return
+
+            # 4.2 Faz commit com a mensagem
+            self.repo.index.commit(commit_msg)
 
             # 5. Pull --rebase para sincronizar com remoto
             try:
                 self.repo.git.pull("--rebase", "origin", branch.name)
             except GitCommandError as e:
+                self.setEnabled(True)
                 QMessageBox.warning(
                     self,
                     CONFIG["error_git"],
@@ -571,7 +597,8 @@ class AnnotateYoloApp(QMainWindow):
 
         except GitCommandError as e:
             QMessageBox.warning(self, CONFIG["error_git"], str(e))
-
+    
+        self.setEnabled(True)
 
     # -------------------------------
     # Config
