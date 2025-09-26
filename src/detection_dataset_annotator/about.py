@@ -1,6 +1,6 @@
 # about.py
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 __package__ = "detection_dataset_annotator"
 __program_name__ = "detection-dataset-annotator"
 __program_project__ = "detection-dataset-project"
