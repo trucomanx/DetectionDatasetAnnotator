@@ -5,7 +5,7 @@ import sys
 import json
 import subprocess
 import signal
-
+import copy
 import tempfile
 
 from PyQt5 import QtWidgets, QtCore, QtGui
@@ -532,7 +532,8 @@ class AnnotateYoloApp(QMainWindow):
                 remote_file = self.repo.git.show(f"origin/{branch.name}:config.json")
                 remote_config = json.loads(remote_file)
             except GitCommandError:
-                remote_config = {}  # caso não exista ainda no remoto
+                remote_config = copy.deepcopy(self.config)
+                #remote_config = {}  # caso não exista ainda no remoto
 
             # 2. Mescla apenas a chave do usuário
             key_user = f"images_{self.user}"
