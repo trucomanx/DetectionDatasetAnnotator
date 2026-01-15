@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import ( QMainWindow, QGraphicsItem, QGraphicsSimpleTextIte
     QTableWidgetItem, QPushButton, QInputDialog, QLabel, QTableWidget, QAbstractItemView,
     QHeaderView)
 from PyQt5.QtCore import Qt, QUrl, QRectF
-from PyQt5.QtGui import QDesktopServices, QIcon, QColor, QPen, QBrush, QPainter, QPixmap
+from PyQt5.QtGui import QDesktopServices, QIcon, QColor, QPen, QBrush, QPainter, QPixmap, QFont
 
 import detection_dataset_annotator.about as about
 import detection_dataset_annotator.modules.configure as configure 
@@ -65,7 +65,8 @@ DEFAULT_CONTENT={   "toolbar_configure": "Configure",
                     "not_found": "not found!",
                     "name_git": "Git",
                     "changes_pushed": "Changes pushed!",
-                    "no_save_config": "Could not save config.json:"
+                    "no_save_config": "Could not save config.json:",
+                    "boundingbox_fontsize":18
                 }
 
 configure.verify_default_config(CONFIG_PATH,default_content=DEFAULT_CONTENT)
@@ -91,14 +92,48 @@ class BoundingBox(QGraphicsRectItem):
 
         self.class_name = class_name
         self.color = color
+        
         self.text_item = QGraphicsSimpleTextItem(class_name, self)
+        self.text_item.setBrush(QBrush(Qt.black))  # texto preto
+
+        font = QFont()
+        font.setPointSize(CONFIG["boundingbox_fontsize"]) 
+        font.setBold(True)
+
+        self.text_item.setFont(font)
+
+
+        # fundo do texto
+        self.text_bg = QGraphicsRectItem(self)
+        self.text_bg.setBrush(QBrush(QColor(255, 255, 255, 200)))  # branco semi-transparente
+        self.text_bg.setPen(QPen(Qt.NoPen))  # sem borda
+
         self.update_label_position()
+
         self.setPen(QPen(color, 2))
         self.setBrush(QBrush(QColor(0,0,0,0)))
 
     def update_label_position(self):
         rect = self.rect()
-        self.text_item.setPos(rect.x(), rect.y() - 15)
+
+        # posição do texto
+        text_x = rect.x()
+        text_y = rect.y() - 18
+
+        self.text_item.setPos(text_x + 3, text_y + 1)
+
+        # ajusta o fundo ao tamanho do texto
+        text_rect = self.text_item.boundingRect()
+        self.text_bg.setRect(
+            text_x,
+            text_y,
+            text_rect.width() + 6,
+            text_rect.height() + 2
+        )
+
+        # garante que o fundo fique atrás do texto
+        self.text_bg.setZValue(self.zValue())
+        self.text_item.setZValue(self.zValue() + 1)
 
     def hoverMoveEvent(self, event):
         # Detecta se o mouse está próximo do canto inferior direito
