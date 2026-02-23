@@ -795,6 +795,8 @@ class AnnotateYoloApp(QMainWindow):
         nome_base, _ = os.path.splitext(self.current_image)
         label_path = os.path.join(self.dataset_path, "labels", nome_base + ".txt")
         
+        os.makedirs(os.path.dirname(label_path), exist_ok=True)
+        
         if self.scene.box_items:
             w = self.pixmap_item.pixmap().width()
             h = self.pixmap_item.pixmap().height()

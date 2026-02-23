@@ -275,8 +275,11 @@ class CreateProjectApp(QMainWindow):
         
         # Verifica se existem imagens
         valid_exts = CONFIG["valid_image_exts"]
+        
         all_images = [
-            f for f in os.listdir(images_path)
+            os.path.relpath(os.path.join(root, f), images_path)
+            for root, dirs, files in os.walk(images_path)
+            for f in files
             if any(f.lower().endswith(ext) for ext in valid_exts)
         ]
 
