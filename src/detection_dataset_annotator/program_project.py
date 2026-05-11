@@ -20,8 +20,11 @@ from git import Repo, GitCommandError
 
 import detection_dataset_annotator.about as about
 import detection_dataset_annotator.modules.configure as configure 
-from detection_dataset_annotator.desktop import create_desktop_file, create_desktop_directory, create_desktop_menu
+from detection_dataset_annotator.desktop import create_desktop_file
+from detection_dataset_annotator.desktop import create_desktop_directory
+from detection_dataset_annotator.desktop import create_desktop_menu
 from detection_dataset_annotator.modules.wabout  import show_about_window
+from detection_dataset_annotator.modules.resources import resource_path
 
 CONFIG_PATH = os.path.join( os.path.expanduser("~"),
                             ".config",
@@ -93,8 +96,7 @@ class CreateProjectApp(QMainWindow):
         
         ## Icon
         # Get base directory for icons
-        base_dir_path = os.path.dirname(os.path.abspath(__file__))
-        self.icon_path = os.path.join(base_dir_path, 'icons', 'logo.png')
+        self.icon_path = resource_path('icons', 'logo.png')
         self.setWindowIcon(QIcon(self.icon_path)) 
         
         self.dataset_path = ""
@@ -109,25 +111,30 @@ class CreateProjectApp(QMainWindow):
         # Adicionar o espaçador
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.toolbar.addWidget(spacer)
         
         #
-        self.configure_action = QAction(QIcon.fromTheme("document-properties"), CONFIG["toolbar_configure"], self)
+        self.configure_action = QAction(QIcon(resource_path('icons', 'text-configure.png')), 
+                                        CONFIG["toolbar_configure"], 
+                                        self)
         self.configure_action.setToolTip(CONFIG["toolbar_configure_tooltip"])
         self.configure_action.triggered.connect(self.open_configure_editor)
+        self.toolbar.addAction(self.configure_action)
         
         #
-        self.about_action = QAction(QIcon.fromTheme("help-about"), CONFIG["toolbar_about"], self)
+        self.about_action = QAction(QIcon(resource_path('icons', 'status_help.png')), 
+                                    CONFIG["toolbar_about"], 
+                                    self)
         self.about_action.setToolTip(CONFIG["toolbar_about_tooltip"])
         self.about_action.triggered.connect(self.open_about)
+        self.toolbar.addAction(self.about_action)
         
         # Coffee
-        self.coffee_action = QAction(QIcon.fromTheme("emblem-favorite"), CONFIG["toolbar_coffee"], self)
+        self.coffee_action = QAction(   QIcon(resource_path('icons', 'emote-love.png')), 
+                                        CONFIG["toolbar_coffee"], 
+                                        self)
         self.coffee_action.setToolTip(CONFIG["toolbar_coffee_tooltip"])
         self.coffee_action.triggered.connect(self.on_coffee_action_click)
-    
-        self.toolbar.addWidget(spacer)
-        self.toolbar.addAction(self.configure_action)
-        self.toolbar.addAction(self.about_action)
         self.toolbar.addAction(self.coffee_action)
     
     def open_configure_editor(self):
@@ -166,7 +173,7 @@ class CreateProjectApp(QMainWindow):
         # Selecionar pasta do dataset
         layout.addWidget(QLabel(CONFIG["select_dataset"]))
         self.btn_select_dataset = QPushButton(CONFIG["select_dataset_folder"])
-        self.btn_select_dataset.setIcon(QIcon.fromTheme("folder-open")) 
+        self.btn_select_dataset.setIcon(QIcon(resource_path('icons', 'folder-drag-accept.png'))) 
         self.btn_select_dataset.setToolTip(CONFIG["select_dataset_folder_tooltip"])
         self.btn_select_dataset.clicked.connect(self.select_dataset)
         self.lbl_select_dataset = QLabel("")
@@ -182,12 +189,12 @@ class CreateProjectApp(QMainWindow):
         
         h_layout_user = QHBoxLayout()
         self.btn_add_user = QPushButton(CONFIG["add_user"])
-        self.btn_add_user.setIcon(QIcon.fromTheme("list-add"))
+        self.btn_add_user.setIcon(QIcon(resource_path('icons', 'button_add_green.png')))
         self.btn_add_user.clicked.connect(self.add_user_row)
         h_layout_user.addWidget(self.btn_add_user)
         
         self.btn_remove_user = QPushButton(CONFIG["remove_user"])
-        self.btn_remove_user.setIcon(QIcon.fromTheme("list-remove")) 
+        self.btn_remove_user.setIcon(QIcon(resource_path('icons', 'button_remove_red.png'))) 
         self.btn_remove_user.clicked.connect(self.remove_user_row)
         h_layout_user.addWidget(self.btn_remove_user)
         layout.addLayout(h_layout_user)
@@ -201,12 +208,12 @@ class CreateProjectApp(QMainWindow):
         
         h_layout_class = QHBoxLayout()
         self.btn_add_class = QPushButton(CONFIG["add_class"])
-        self.btn_add_class.setIcon(QIcon.fromTheme("list-add")) 
+        self.btn_add_class.setIcon(QIcon(resource_path('icons', 'button_add_green.png'))) 
         self.btn_add_class.clicked.connect(self.add_class_row)
         h_layout_class.addWidget(self.btn_add_class)
         
         self.btn_remove_class = QPushButton(CONFIG["remove_class"])
-        self.btn_remove_class.setIcon(QIcon.fromTheme("list-remove")) 
+        self.btn_remove_class.setIcon(QIcon(resource_path('icons', 'button_remove_red.png'))) 
         self.btn_remove_class.clicked.connect(self.remove_class_row)
         h_layout_class.addWidget(self.btn_remove_class)
         layout.addLayout(h_layout_class)
@@ -220,7 +227,7 @@ class CreateProjectApp(QMainWindow):
         
         # Botão criar projeto (só ativa no final)
         self.btn_create = QPushButton(CONFIG["create_project"])
-        self.btn_create.setIcon(QIcon.fromTheme("document-new")) 
+        self.btn_create.setIcon(QIcon(resource_path('icons', 'new_file.png'))) 
         self.btn_create.setIconSize(QSize(32, 32))
         self.btn_create.setStyleSheet("font-weight: bold;")
         self.btn_create.clicked.connect(self.create_project)
@@ -412,7 +419,7 @@ def main():
             return
     
     app = QApplication(sys.argv)
-    app.setApplicationName(about.__package__) 
+    app.setApplicationName(about.__program_project__) 
     
     window = CreateProjectApp()
     window.show()

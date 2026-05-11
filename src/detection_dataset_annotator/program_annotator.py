@@ -22,8 +22,11 @@ from PyQt5.QtGui import QDesktopServices, QIcon, QColor, QPen, QBrush, QPainter,
 
 import detection_dataset_annotator.about as about
 import detection_dataset_annotator.modules.configure as configure 
-from detection_dataset_annotator.desktop import create_desktop_file, create_desktop_directory, create_desktop_menu
+from detection_dataset_annotator.desktop import create_desktop_file
+from detection_dataset_annotator.desktop import create_desktop_directory
+from detection_dataset_annotator.desktop import create_desktop_menu
 from detection_dataset_annotator.modules.wabout  import show_about_window
+from detection_dataset_annotator.modules.resources import resource_path
 
 CONFIG_PATH = os.path.join( os.path.expanduser("~"),
                             ".config",
@@ -242,8 +245,7 @@ class AnnotateYoloApp(QMainWindow):
 
         ## Icon
         # Get base directory for icons
-        base_dir_path = os.path.dirname(os.path.abspath(__file__))
-        self.icon_path = os.path.join(base_dir_path, 'icons', 'logo.png')
+        self.icon_path = resource_path('icons', 'logo.png')
         self.setWindowIcon(QIcon(self.icon_path)) 
         
         self.dataset_path = ""
@@ -263,25 +265,30 @@ class AnnotateYoloApp(QMainWindow):
         # Adicionar o espaçador
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.toolbar.addWidget(spacer)
         
         #
-        self.configure_action = QAction(QIcon.fromTheme("document-properties"), CONFIG["toolbar_configure"], self)
+        self.configure_action = QAction(QIcon(resource_path('icons', 'text-configure.png')), 
+                                        CONFIG["toolbar_configure"], 
+                                        self)
         self.configure_action.setToolTip(CONFIG["toolbar_configure_tooltip"])
         self.configure_action.triggered.connect(self.open_configure_editor)
+        self.toolbar.addAction(self.configure_action)
         
         #
-        self.about_action = QAction(QIcon.fromTheme("help-about"), CONFIG["toolbar_about"], self)
+        self.about_action = QAction(QIcon(resource_path('icons', 'status_help.png')), 
+                                    CONFIG["toolbar_about"], 
+                                    self)
         self.about_action.setToolTip(CONFIG["toolbar_about_tooltip"])
         self.about_action.triggered.connect(self.open_about)
+        self.toolbar.addAction(self.about_action)
         
         # Coffee
-        self.coffee_action = QAction(QIcon.fromTheme("emblem-favorite"), CONFIG["toolbar_coffee"], self)
+        self.coffee_action = QAction(   QIcon(resource_path('icons', 'emote-love.png')), 
+                                        CONFIG["toolbar_coffee"], 
+                                        self)
         self.coffee_action.setToolTip(CONFIG["toolbar_coffee_tooltip"])
         self.coffee_action.triggered.connect(self.on_coffee_action_click)
-    
-        self.toolbar.addWidget(spacer)
-        self.toolbar.addAction(self.configure_action)
-        self.toolbar.addAction(self.about_action)
         self.toolbar.addAction(self.coffee_action)
     
     def open_configure_editor(self):
@@ -323,7 +330,7 @@ class AnnotateYoloApp(QMainWindow):
         left_panel_widget.setLayout(left_panel_layout)
 
         self.btn_select_dataset = QPushButton(CONFIG["select_dataset_folder"])
-        self.btn_select_dataset.setIcon(QIcon.fromTheme("folder-open")) 
+        self.btn_select_dataset.setIcon(QIcon(resource_path('icons', 'folder-drag-accept.png'))) 
         self.btn_select_dataset.clicked.connect(self.select_dataset)
         left_panel_layout.addWidget(self.btn_select_dataset)
         
@@ -343,7 +350,7 @@ class AnnotateYoloApp(QMainWindow):
 
 
         self.btn_update_dataset = QPushButton(CONFIG["update_dataset"])
-        self.btn_update_dataset.setIcon(QIcon.fromTheme("go-bottom")) 
+        self.btn_update_dataset.setIcon(QIcon(resource_path('icons', 'go-down.png'))) 
         self.btn_update_dataset.clicked.connect(self.update_dataset)
         self.btn_update_dataset.hide()
         left_panel_layout.addWidget(self.btn_update_dataset)
@@ -375,7 +382,7 @@ class AnnotateYoloApp(QMainWindow):
         left_panel_layout.addWidget(self.table_done)
 
         self.btn_commit = QPushButton(CONFIG["commit_and_push"])
-        self.btn_commit.setIcon(QIcon.fromTheme("go-next")) 
+        self.btn_commit.setIcon(QIcon(resource_path('icons', 'go-next.png'))) 
         self.btn_commit.clicked.connect(self.commit_push)
         self.btn_commit.hide()
         left_panel_layout.addWidget(self.btn_commit)
@@ -386,7 +393,7 @@ class AnnotateYoloApp(QMainWindow):
         right_panel_widget.setLayout(right_panel_layout)
 
         self.btn_approve = QPushButton(CONFIG["approve"])
-        self.btn_approve.setIcon(QIcon.fromTheme("insert-object")) 
+        self.btn_approve.setIcon(QIcon(resource_path('icons', 'insert-object.png'))) 
         self.btn_approve.clicked.connect(lambda: self.approve_image())
         self.btn_approve.hide()
         right_panel_layout.addWidget(self.btn_approve)
@@ -856,7 +863,7 @@ def main():
             return
     
     app = QApplication(sys.argv)
-    app.setApplicationName(about.__package__) 
+    app.setApplicationName(about.__program_name__) 
     
     window = AnnotateYoloApp()
     window.show()
