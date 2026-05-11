@@ -22,7 +22,7 @@ detection-dataset-annotator
 Installing `detection-dataset-annotator` program
 
 ```bash
-git clone https://github.com/trucomanx/DetectionDatasetAnnotator.git
+git clone https://github.com/trucomanx-desktop/DetectionDatasetAnnotator.git
 cd DetectionDatasetAnnotator
 pip install -r requirements.txt
 cd src

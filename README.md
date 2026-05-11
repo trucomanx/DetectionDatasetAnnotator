@@ -31,7 +31,7 @@ detection-dataset-annotator
 
 ## 2. More information
 
-If you want more information go to [doc](https://github.com/trucomanx/DetectionDatasetAnnotator/blob/main/doc) directory
+If you want more information go to [doc](https://github.com/trucomanx-desktop/DetectionDatasetAnnotator/blob/main/doc) directory
 
 ## 3. Buy me a coffee
 

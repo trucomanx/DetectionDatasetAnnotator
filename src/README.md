@@ -2,7 +2,7 @@
 
 A slight annotator of detection datasets
 
-![logo](https://raw.githubusercontent.com/trucomanx/DetectionDatasetAnnotator/main/screenshot.png)
+![logo](https://raw.githubusercontent.com/trucomanx-desktop/DetectionDatasetAnnotator/main/screenshot.png)
 
 ## 1. Installing
 
@@ -31,7 +31,7 @@ detection-dataset-annotator
 
 ## 2. More information
 
-If you want more information go to [doc](https://github.com/trucomanx/DetectionDatasetAnnotator/blob/main/doc) directory.
+If you want more information go to [doc](https://github.com/trucomanx-desktop/DetectionDatasetAnnotator/blob/main/doc) directory.
 
 ## 3. Buy me a coffee
 
